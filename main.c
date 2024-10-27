@@ -3,6 +3,8 @@
 
 #include "munit.h"
 #include "object.h"
+#include "vm.h"
+#include "new.h"
 
 /*MSVC warning about conditional expressions being constant*/
 #if defined(_MSC_VER)
@@ -31,7 +33,6 @@ static MunitResult test_ref_count(const MunitParameter params[], void *data)
     munit_assert_null(array);
     munit_assert_int(foo->refcount, ==, 2);
 
-    
     release_reference(&value2);
     munit_assert_int(foo->refcount, ==, 1);
 
@@ -197,14 +198,13 @@ static MunitResult test_array_add(const MunitParameter params[], void *data)
     munit_assert(array_set(ones, 0, one));
     munit_assert(array_set(ones, 1, one));
     munit_assert_int(one->refcount, ==, 3);
-    
+
     object_t *hi = new_string("hi");
     object_t *hellos = new_array(3);
     munit_assert(array_set(hellos, 0, hi));
     munit_assert(array_set(hellos, 1, hi));
     munit_assert(array_set(hellos, 2, hi));
     munit_assert_int(hi->refcount, ==, 4);
-    
 
     object_t *result = add(ones, hellos);
 
@@ -235,11 +235,102 @@ static MunitResult test_array_add(const MunitParameter params[], void *data)
     munit_assert_null(hellos);
     munit_assert_int(one->refcount, ==, 1);
     munit_assert_int(hi->refcount, ==, 1);
-    
+
     object_free(&hi);
     object_free(&one);
     munit_assert_null(one);
     munit_assert_null(hi);
+
+    return MUNIT_OK;
+}
+
+static MunitResult test_mark_sweep_simple(const MunitParameter params[], void *data)
+{
+    vm_t *vm = vm_new(true);
+    munit_assert_not_null(vm);
+
+    frame_t *f1 = vm_new_frame(vm);
+    munit_assert_not_null(f1);
+
+    object_t *s = new_string_tr(vm, "I wish I knew how to read.");
+    void *ref = s;
+    frame_reference_object(f1, s);
+
+    object_t *obj = vm->objects->data[0];
+    munit_assert_int(obj->kind, ==, STRING);
+
+    frame_t *f2 = vm->frames->data[0];
+    object_t *obj2 = f2->reference->data[0];
+    munit_assert_ptr_equal(obj2, obj);
+
+    frame_free(vm_frame_pop(vm));
+    vm_collect_garbage(vm);
+    munit_assert_true(vm_debug_was_freed(vm, ref));
+
+    vm_free(vm);
+
+    return MUNIT_OK;
+}
+
+static MunitResult test_mark_sweep_full(const MunitParameter params[], void *data)
+{
+    vm_t *vm = vm_new(true);
+    frame_t *f1 = vm_new_frame(vm);
+    frame_t *f2 = vm_new_frame(vm);
+    frame_t *f3 = vm_new_frame(vm);
+
+    object_t *s1 = new_string_tr(vm, "This string is going into frame 1");
+    void *s1_k = s1;
+    frame_reference_object(f1, s1);
+
+    object_t *s2 = new_string_tr(vm, "This string is going into frame 2");
+    void *s2_k = s2;
+    frame_reference_object(f2, s2);
+
+    object_t *s3 = new_string_tr(vm, "This string is going into frame 3");
+    void *s3_k = s3;
+    frame_reference_object(f3, s3);
+
+    object_t *i1 = new_integer_tr(vm, 69);
+    void *i1_k = i1;
+    object_t *i2 = new_integer_tr(vm, 420);
+    void *i2_k = i2;
+    frame_reference_object(f1, i2);
+    object_t *i3 = new_integer_tr(vm, 1337);
+    void *i3_k = i3;
+    object_t *v = new_vector3_tr(vm, i1, i2, i3);
+    void *v_k = v;
+    frame_reference_object(f2, v);
+    frame_reference_object(f3, v);
+
+    munit_assert_int(vm->objects->count, ==, 7);
+
+    // only free the top frame (f3)
+    frame_free(vm_frame_pop(vm));
+    vm_collect_garbage(vm);
+    munit_assert_true(vm_debug_was_freed(vm, s3_k));
+    munit_assert_false(vm_debug_was_freed(vm, s2_k));
+    munit_assert_false(vm_debug_was_freed(vm, s1_k));
+    munit_assert_false(vm_debug_was_freed(vm, v_k));
+    
+    // pop second frame
+    frame_free(vm_frame_pop(vm));
+    vm_collect_garbage(vm);
+    munit_assert_true(vm_debug_was_freed(vm, s2_k));
+    munit_assert_true(vm_debug_was_freed(vm, v_k));
+    munit_assert_true(vm_debug_was_freed(vm, i1_k));
+    munit_assert_true(vm_debug_was_freed(vm, i3_k));
+    munit_assert_false(vm_debug_was_freed(vm, i2_k));
+    munit_assert_false(vm_debug_was_freed(vm, s1_k));
+
+    // pop last frame
+    frame_free(vm_frame_pop(vm));
+    vm_collect_garbage(vm);
+    munit_assert_true(vm_debug_was_freed(vm, i2_k));
+    munit_assert_true(vm_debug_was_freed(vm, s1_k));
+    // munit_assert_int(vm->objects->count, ==, 0);
+
+    vm_free(vm);
 
     return MUNIT_OK;
 }
@@ -252,6 +343,8 @@ static MunitTest test_suite_tests[] = {
     {(char *)"/test/string_self_add", test_string_add_self, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {(char *)"/test/vetor3_add", test_vector3_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {(char *)"/test/array_add", test_array_add, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {(char *)"/test/mark_sweep_simple", test_mark_sweep_simple, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
+    {(char *)"/test/mark_sweep_full", test_mark_sweep_full, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL},
     {NULL, NULL, NULL, NULL, MUNIT_TEST_OPTION_NONE, NULL}};
 
 static const MunitSuite test_suite = {

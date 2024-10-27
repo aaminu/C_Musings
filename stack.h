@@ -1,5 +1,4 @@
-#ifndef _STACK_H_
-#define _STACK_H_
+#pragma once
 
 #include <stddef.h>
 #include <stdlib.h>
@@ -15,6 +14,3 @@ stack_t *stack_new(size_t capacity);
 void stack_push(stack_t *stack, void *obj);
 void *stack_pop(stack_t *stack); 
 void stack_free(stack_t *stack);
-
-
-#endif /*_STACK_H*/

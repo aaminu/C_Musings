@@ -1,3 +1,4 @@
+#pragma once
 #include <stdio.h>
 #include <stdbool.h>
 
@@ -39,6 +40,7 @@ typedef struct Object
 	object_kind_t kind;
 	object_data_t data;
 	size_t refcount;
+	bool is_marked;
 } object_t;
 
 object_t *new_integer(int value);
