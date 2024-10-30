@@ -4,55 +4,56 @@
 
 typedef struct Object object_t;
 
-typedef enum ObjectKind
-{
-	INTEGER,
-	FLOAT,
-	STRING,
-	VECTOR3,
-	ARRAY,
+/**
+ * @enum ObjectKind
+ * Enum to define types of objects.
+ */
+typedef enum ObjectKind {
+    INTEGER,   /**< Integer type */
+    FLOAT,     /**< Float type */
+    STRING,    /**< String type */
+    VECTOR3,   /**< 3D vector type */
+    ARRAY      /**< Array type */
 } object_kind_t;
 
-typedef struct Vector
-{
-	object_t *x;
-	object_t *y;
-	object_t *z;
+/**
+ * @struct Vector
+ * Structure to represent a 3D vector.
+ */
+typedef struct Vector {
+    object_t *x; /**< X coordinate */
+    object_t *y; /**< Y coordinate */
+    object_t *z; /**< Z coordinate */
 } vector_t;
 
-typedef struct Array
-{
-	size_t size;
-	object_t **elements;
+/**
+ * @struct Array
+ * Structure to represent an array of objects.
+ */
+typedef struct Array {
+    size_t size;           /**< Size of the array */
+    object_t **elements;   /**< Pointer to array elements */
 } array_t;
 
-typedef union ObjectData
-{
-	int v_int;
-	float v_float;
-	char *v_string;
-	vector_t v_vector3;
-	array_t v_array;
+/**
+ * @union ObjectData
+ * Union to hold data for different object types.
+ */
+typedef union ObjectData {
+    int v_int;             /**< Integer value */
+    float v_float;         /**< Float value */
+    char *v_string;        /**< String value */
+    vector_t v_vector3;    /**< 3D vector */
+    array_t v_array;       /**< Array of objects */
 } object_data_t;
 
-typedef struct Object
-{
-	object_kind_t kind;
-	object_data_t data;
-	size_t refcount;
-	bool is_marked;
+/**
+ * @struct Object
+ * Structure to represent a generic object with a type and data.
+ */
+typedef struct Object {
+    object_kind_t kind;    /**< Kind of the object */
+    object_data_t data;    /**< Data of the object */
+    size_t refcount;       /**< Reference count */
+    bool is_marked;        /**< Mark for garbage collection */
 } object_t;
-
-object_t *new_integer(int value);
-object_t *new_float(float value);
-object_t *new_string(char *value);
-object_t *new_vector3(object_t *x, object_t *y, object_t *z);
-object_t *new_array(size_t size);
-bool array_set(object_t *obj, size_t index, object_t *value); 
-object_t *array_get(object_t *obj, size_t index); //If Intention is to keep the borrow reference, remember to call to add_reference, and release reference afterwards
-int length(object_t *obj);
-object_t *add(object_t *a, object_t *b);
-
-void add_reference(object_t *obj); // Mainly for borrow reference
-void release_reference(object_t **obj); // to release borrowed reference, can also work on objects, but use obj free preferably
-bool object_free(object_t **obj);

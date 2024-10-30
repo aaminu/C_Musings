@@ -1,6 +1,21 @@
 #include "vm.h"
 
-void vm_debug_init(vm_t *vm)
+static void vm_debug_init(vm_t *vm);
+static void vm_debug_track_free(vm_t *vm, void *ptr);
+static void vm_frame_push(vm_t *vm, frame_t *frame);
+static void object_free_tr(vm_t *vm, object_t *obj);
+static void mark(vm_t *vm);
+static void trace_mark_object(stack_t *gray_objects, object_t *obj);
+static void trace_traverse_object(stack_t *gray_objects, object_t *obj);
+static void trace(vm_t *vm);
+static void sweep(vm_t *vm);
+
+/**
+ * @brief Initialize the virtual machine's debug mode and associated structures.
+ * 
+ * @param vm Pointer to the virtual machine instance.
+ */
+static void vm_debug_init(vm_t *vm)
 {
     vm->debug = malloc(sizeof(vm_debug_t));
     if (vm->debug)
@@ -40,7 +55,13 @@ vm_t *vm_new(bool debug)
     return vm;
 }
 
-void vm_debug_track_free(vm_t *vm, void *ptr)
+/**
+ * @brief Internal function to track a freed pointer in debug mode.
+ * 
+ * @param vm Pointer to the virtual machine.
+ * @param ptr Pointer to the memory that was freed.
+ */
+static void vm_debug_track_free(vm_t *vm, void *ptr)
 {
     if (vm->debug == NULL || !vm->debug->debug_mode)
         return;
@@ -78,7 +99,12 @@ bool vm_debug_was_freed(vm_t *vm, void *ptr)
     return false;
 }
 
-void vm_debug_cleanup(vm_t *vm)
+/**
+ * @brief Clean up the virtual machine's debug data.
+ * 
+ * @param vm Pointer to the virtual machine.
+ */
+static void vm_debug_cleanup(vm_t *vm)
 {
     if (vm->debug)
     {
@@ -114,7 +140,13 @@ void vm_track_object(vm_t *vm, object_t *obj)
     stack_push(vm->objects, obj);
 }
 
-void vm_frame_push(vm_t *vm, frame_t *frame)
+/**
+ * @brief Push a frame onto the virtual machine's frame stack.
+ * 
+ * @param vm Pointer to the virtual machine.
+ * @param frame Frame to be pushed onto the VM's stack.
+ */
+static void vm_frame_push(vm_t *vm, frame_t *frame)
 {
     if (frame == NULL || vm == NULL)
     {
@@ -159,7 +191,18 @@ void frame_free(frame_t *frame)
     free(frame);
 }
 
-void object_free_tr(vm_t *vm, object_t *obj)
+/**
+ * @brief Frees an object and its contained resources, with tracking in debug mode.
+ * 
+ * @param vm Pointer to the virtual machine, used for tracking freed objects in debug mode.
+ * @param obj Pointer to the object to free.
+ * 
+ * @note This function traverses the object's contents based on its type, 
+ *       freeing any dynamically allocated resources it contains. 
+ *       The function is used internally for controlled memory deallocation.
+ *       However, it doesn't free the `object_t` in the objects.
+ */
+static void object_free_tr(vm_t *vm, object_t *obj)
 {
     if (obj == NULL)
         return;
@@ -203,7 +246,14 @@ void frame_reference_object(frame_t *frame, object_t *obj)
     stack_push(frame->reference, obj);
 }
 
-void mark(vm_t *vm)
+/**
+ * @brief Mark all objects in the stack-frames of the virtual machine frame
+ * 
+ * @param vm Pointer to the virtual machine.
+ * 
+ * @note Allows the GC know objects still active
+ */
+static void mark(vm_t *vm)
 {
     for (size_t i = 0; i < vm->frames->count; i++)
     {
@@ -216,16 +266,28 @@ void mark(vm_t *vm)
     }
 }
 
-void trace_mark_object(stack_t *gray_objects, object_t *obj)
+/**
+ * @brief Trace and mark an object during garbage collection.
+ * 
+ * @param gray_objects Stack of marked objects to trace further references.
+ * @param obj Object to be marked.
+ */
+static void trace_mark_object(stack_t *gray_objects, object_t *obj)
 {
     if (obj == NULL || obj->is_marked)
         return;
 
     obj->is_marked = true;
-    stack_push(gray_objects, obj);
+    stack_push(gray_objects, obj); // Allows for travesal of object
 }
 
-void trace_blacken_object(stack_t *gray_objects, object_t *obj)
+/**
+ * @brief Traverese trace references within a marked object.
+ * 
+ * @param gray_objects Stack of marked objects to trace further references.
+ * @param obj Object to check.
+ */
+static void trace_traverse_object(stack_t *gray_objects, object_t *obj)
 {
     if (obj == NULL)
         return;
@@ -256,17 +318,23 @@ void trace_blacken_object(stack_t *gray_objects, object_t *obj)
     }
 }
 
-void trace(vm_t *vm)
+/**
+ * @brief Trace all reachable/active objects in the virtual machine.
+ * 
+ * @param vm Pointer to the virtual machine.
+ * 
+ * @note Neccessary for objects thet reference other objects e.g `array`/`vector3`
+ */
+static void trace(vm_t *vm)
 {
     stack_t *gray_objects = stack_new(8);
     if (gray_objects == NULL)
         return;
 
-    for (int i = 0; i < vm->objects->count; i++)
+    for (size_t i = 0; i < vm->objects->count; i++)
     {
         object_t *obj = vm->objects->data[i];
-        if (obj == NULL)
-            continue;
+
         if (obj->is_marked)
         {
             stack_push(gray_objects, obj);
@@ -274,31 +342,44 @@ void trace(vm_t *vm)
     }
     while (gray_objects->count > 0)
     {
-        trace_blacken_object(gray_objects, stack_pop(gray_objects));
+        trace_traverse_object(gray_objects, stack_pop(gray_objects));
     }
 
     stack_free(gray_objects);
 }
 
-void sweep(vm_t *vm)
+/**
+ * @brief Sweep and free unmarked objects in the virtual machine.
+ * 
+ * @param vm Pointer to the virtual machine.
+ */
+static void sweep(vm_t *vm)
 {
-    for (int i = 0; i < vm->objects->count; i++)
+    size_t write = 0; // Write position for compaction
+
+    for (size_t read = 0; read < vm->objects->count; read++)
     {
-        object_t *obj = vm->objects->data[i];
-        if (obj == NULL)
-            continue;
+        object_t *obj = vm->objects->data[read];
         if (obj->is_marked)
         {
-            obj->is_marked = false;
+            obj->is_marked = false; //Reset mark for next GC cycle.
+            if(write != read)
+            {
+                vm->objects->data[write] = obj;
+            }
+            write++;
         }
         else
         {
             object_free_tr(vm, obj);
-            vm->objects->data[i] = NULL;
+            vm->objects->data[read] = NULL;
         }
-    }
 
-    // TODO: remove Nulls
+    }
+    // Update stack count to new size after compaction
+    vm->objects->count = write;
+
+    // TODO: Compact object stack;
 }
 
 void vm_collect_garbage(vm_t *vm)

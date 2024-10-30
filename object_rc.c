@@ -1,6 +1,24 @@
 #include <stdlib.h>
 #include <string.h>
-#include "object.h"
+#include "object_rc.h"
+
+/**
+ * @brief Create a new object with an initial reference count of 1.
+ * 
+ * @return Pointer to the newly allocated object, or NULL if allocation fails.
+ * 
+ * @note This function allocates memory for a new object and initializes its
+ *       reference count to 1. It is a static function meant for internal use.
+ */
+static object_t *_new_object(void)
+{
+    object_t *ptr = calloc(1, sizeof(object_t));
+    if (ptr == NULL)
+        return NULL;
+
+    ptr->refcount = 1;
+    return ptr;
+}
 
 void add_reference(object_t *obj)
 {
@@ -20,16 +38,6 @@ void release_reference(object_t **obj)
     {
         object_free(obj);
     }
-}
-
-static object_t *_new_object()
-{
-    object_t *ptr = calloc(1, sizeof(object_t));
-    if (ptr == NULL)
-        return NULL;
-
-    ptr->refcount = 1;
-    return ptr;
 }
 
 object_t *new_integer(int value)

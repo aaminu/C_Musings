@@ -2,9 +2,9 @@
 #include <stdio.h>
 
 #include "munit.h"
-#include "object.h"
 #include "vm.h"
-#include "new.h"
+#include "object_rc.h"
+#include "object_ms.h"
 
 /*MSVC warning about conditional expressions being constant*/
 #if defined(_MSC_VER)
@@ -252,7 +252,7 @@ static MunitResult test_mark_sweep_simple(const MunitParameter params[], void *d
     frame_t *f1 = vm_new_frame(vm);
     munit_assert_not_null(f1);
 
-    object_t *s = new_string_tr(vm, "I wish I knew how to read.");
+    object_t *s = new_string_ms(vm, "I wish I knew how to read.");
     void *ref = s;
     frame_reference_object(f1, s);
 
@@ -279,26 +279,26 @@ static MunitResult test_mark_sweep_full(const MunitParameter params[], void *dat
     frame_t *f2 = vm_new_frame(vm);
     frame_t *f3 = vm_new_frame(vm);
 
-    object_t *s1 = new_string_tr(vm, "This string is going into frame 1");
+    object_t *s1 = new_string_ms(vm, "This string is going into frame 1");
     void *s1_k = s1;
     frame_reference_object(f1, s1);
 
-    object_t *s2 = new_string_tr(vm, "This string is going into frame 2");
+    object_t *s2 = new_string_ms(vm, "This string is going into frame 2");
     void *s2_k = s2;
     frame_reference_object(f2, s2);
 
-    object_t *s3 = new_string_tr(vm, "This string is going into frame 3");
+    object_t *s3 = new_string_ms(vm, "This string is going into frame 3");
     void *s3_k = s3;
     frame_reference_object(f3, s3);
 
-    object_t *i1 = new_integer_tr(vm, 69);
+    object_t *i1 = new_integer_ms(vm, 69);
     void *i1_k = i1;
-    object_t *i2 = new_integer_tr(vm, 420);
+    object_t *i2 = new_integer_ms(vm, 420);
     void *i2_k = i2;
     frame_reference_object(f1, i2);
-    object_t *i3 = new_integer_tr(vm, 1337);
+    object_t *i3 = new_integer_ms(vm, 1337);
     void *i3_k = i3;
-    object_t *v = new_vector3_tr(vm, i1, i2, i3);
+    object_t *v = new_vector3_ms(vm, i1, i2, i3);
     void *v_k = v;
     frame_reference_object(f2, v);
     frame_reference_object(f3, v);

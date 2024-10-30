@@ -1,7 +1,16 @@
 #include <string.h>
 
-#include "new.h"
+#include "object_ms.h"
 
+/**
+ * @brief Create a new object within a specific virtual machine context and track it.
+ * 
+ * @param vm Pointer to the virtual machine context used to track the object.
+ * @return Pointer to the newly allocated object, or NULL if allocation fails.
+ * 
+ * @note This function allocates memory for a new object, sets its marked state to false, 
+ *       and tracks it in the provided virtual machine context. It is a static function meant for internal use.
+ */
 static object_t *_new_object_tr(vm_t *vm)
 {
     object_t *obj = calloc(1, sizeof(object_t));
@@ -13,7 +22,7 @@ static object_t *_new_object_tr(vm_t *vm)
     return obj;
 }
 
-object_t *new_integer_tr(vm_t *vm, int value)
+object_t *new_integer_ms(vm_t *vm, int value)
 {
     object_t *ptr = _new_object_tr(vm);
     if (ptr == NULL)
@@ -25,7 +34,7 @@ object_t *new_integer_tr(vm_t *vm, int value)
     return ptr;
 }
 
-object_t *new_float_tr(vm_t *vm, float value)
+object_t *new_float_ms(vm_t *vm, float value)
 {
     object_t *ptr = _new_object_tr(vm);
     if (ptr == NULL)
@@ -37,7 +46,7 @@ object_t *new_float_tr(vm_t *vm, float value)
     return ptr;
 }
 
-object_t *new_string_tr(vm_t *vm, char *value)
+object_t *new_string_ms(vm_t *vm, char *value)
 {
     object_t *ptr = _new_object_tr(vm);
     if (ptr == NULL)
@@ -57,7 +66,7 @@ object_t *new_string_tr(vm_t *vm, char *value)
     return ptr;
 }
 
-object_t *new_vector3_tr(vm_t *vm, object_t *x, object_t *y, object_t *z)
+object_t *new_vector3_ms(vm_t *vm, object_t *x, object_t *y, object_t *z)
 {
 
     if (x == NULL || y == NULL || z == NULL)
@@ -77,7 +86,7 @@ object_t *new_vector3_tr(vm_t *vm, object_t *x, object_t *y, object_t *z)
     return ptr;
 }
 
-object_t *new_array_tr(vm_t *vm, size_t size)
+object_t *new_array_ms(vm_t *vm, size_t size)
 {
     object_t *ptr = _new_object_tr(vm);
     if (ptr == NULL)
